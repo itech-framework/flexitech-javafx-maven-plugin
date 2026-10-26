@@ -66,14 +66,14 @@ Extra tools, by package type:
 | `rpm` | `rpmbuild` (the `rpm-build` package) |
 | `app-image` | Nothing extra, on every system |
 
-Check the JDK with:
+Check the Java that Maven uses, and the `jpackage` on your PATH, with:
 
 ```
-java -version
+mvn -version
 jpackage --version
 ```
 
-Both must show version 17 or higher.
+Both must show version 17 or higher. The plugin takes `jpackage` from the Java that runs Maven, which is the one `mvn -version` shows.
 
 ## Install the plugin
 
@@ -148,13 +148,35 @@ The plugin takes the project jar from `target`. The simplest setup is a single j
 </plugin>
 ```
 
-If your application uses Log4j 2 plugins, also add the Log4j 2 plugin cache transformer to the shade configuration.
+With `shadedArtifactAttached` set to `false`, the shaded jar replaces the project jar, which is the file the plugin looks for.
+
+If your application uses Log4j 2 plugins, also add the Log4j 2 plugin cache transformer. Add it to the `<transformers>` list:
+
+```xml
+<transformer implementation="com.github.edwgiz.maven_shade_plugin.log4j2_cache_transformer.PluginsCacheFileTransformer" />
+```
+
+and add its dependency to the Shade plugin:
+
+```xml
+<dependencies>
+	<dependency>
+		<groupId>com.github.edwgiz</groupId>
+		<artifactId>maven-shade-plugin.log4j2-cachefile-transformer</artifactId>
+		<version>2.15.0</version>
+	</dependency>
+</dependencies>
+```
 
 If you do not shade, set `copyLibs` to `true` (the default). The plugin then copies the dependency jars next to the project jar.
 
 ### 3. JavaFX jars for each system
 
 JavaFX contains native libraries, and Maven normally picks the jars that match the system that runs the build. Build on the target system so that the jars match. If a JavaFX jar for another system ends up on the classpath, the plugin prints a warning.
+
+### 4. Multi-module projects
+
+Configure the plugin only in the module that builds the application jar, and run the goal for that module (for example with `-pl`). The goal needs `mainClass`, so it fails in library modules that do not set it.
 
 ## Configure the plugin
 
@@ -191,6 +213,12 @@ The goal does not compile the project. Run it after `package`, on the same comma
 mvn clean package flexitech-javafx:publish
 ```
 
+The short name `flexitech-javafx:publish` works when the plugin is declared in the project's `pom.xml`, as shown above. If it is not declared, use the full coordinates:
+
+```
+mvn clean package io.github.itech-framework:flexitech-javafx-maven-plugin:0.0.1-SNAPSHOT:publish -Dfx.mainClass=org.example.AppLauncher
+```
+
 The result is created in `target/installer`. The default type depends on the system:
 
 | System | Default type | Result |
@@ -217,6 +245,8 @@ Any parameter can be set on the command line with its property name:
 mvn clean package flexitech-javafx:publish -Dfx.version=1.2.0 -Dfx.type=pkg
 ```
 
+The Maven output shows the exact `jpackage` command in a line that starts with `Running jpackage`. Read it first when a build fails, because it lists every option the plugin passed.
+
 ## Parameters
 
 ### General
@@ -224,11 +254,11 @@ mvn clean package flexitech-javafx:publish -Dfx.version=1.2.0 -Dfx.type=pkg
 | Parameter | Property | Default | Required | Description |
 |---|---|---|---|---|
 | `name` | `fx.name` | `${project.artifactId}` | No | Application name. Used for the package file, the menu entry, the shortcut and the install folder. |
-| `version` | `fx.version` | `${project.version}` | No | Package version. Numbers separated by dots only, such as `1.0.0`. A `-SNAPSHOT` suffix is removed. Any other text suffix makes the build fail. On macOS the first number must be 1 or higher. |
+| `version` | `fx.version` | `${project.version}` | No | Package version. One to three numbers separated by dots, such as `1.0.0`. A `-SNAPSHOT` suffix is removed. Any other text suffix makes the build fail. On macOS the first number must be 1 or higher. On Windows, `jpackage` also limits how large the numbers can be (the first two up to 255 and the third up to 65535), so a date-style version such as `2025.1.0` is rejected. |
 | `vendor` | `fx.vendor` | none | No | Vendor name shown in the installer. |
 | `mainClass` | `fx.mainClass` | none | **Yes** | Fully qualified name of the launcher class. |
-| `platform` | `fx.platform` | `auto` | No | `auto`, `windows`, `mac` or `linux`. With `auto` the system that runs Maven is used. A different system stops the build. |
-| `type` | `fx.type` | first type of the system | No | `msi`, `exe`, `dmg`, `pkg`, `deb`, `rpm` or `app-image`. A type that does not exist on the system is rejected. |
+| `platform` | `fx.platform` | `auto` | No | `auto`, `windows`, `mac` or `linux`. The aliases `win`, `macos` and `osx` also work. With `auto` the system that runs Maven is used. A different system stops the build. |
+| `type` | `fx.type` | first type of the system | No | `msi`, `exe`, `dmg`, `pkg`, `deb`, `rpm` or `app-image`. An empty value or `auto` selects the default type of the system. A type that does not exist on the system is rejected. |
 | `modules` | `fx.modules` | see [Java modules](#java-modules) | No | Modules included in the bundled runtime, separated by commas. `ALL-MODULE-PATH` includes every JDK module. |
 | `copyLibs` | `fx.copyLibs` | `true` | No | Copy the runtime dependency jars next to the project jar. Set it to `false` when the jar already contains its dependencies. |
 | `skip` | `fx.skip` | `false` | No | Skip the goal. |
@@ -250,7 +280,7 @@ A file that does not exist or has the wrong extension is skipped with a warning,
 | `upgradeUuid` | `fx.upgradeUuid` | none | Fixed UUID that lets Windows upgrade an installed version. Never change it after the first release. |
 | `perUser` | `fx.perUser` | `true` | Install for the current user only. No administrator rights are needed and the install folder is writable. When `false`, the app goes to `Program Files`, which a normal user cannot write to. |
 
-For `msi` and `exe`, the plugin also adds a Start Menu entry, a desktop shortcut and a folder chooser.
+For `msi` and `exe`, the plugin also adds a Start Menu entry, a desktop shortcut and a folder chooser. These three cannot be turned off.
 
 ### macOS only
 
@@ -259,7 +289,7 @@ For `msi` and `exe`, the plugin also adds a Start Menu entry, a desktop shortcut
 | `macIdentifier` | `fx.macIdentifier` | none | Bundle identifier in reverse domain form, such as `com.example.planner`. |
 | `macPackageName` | `fx.macPackageName` | none | Name shown in the menu bar, 16 characters or fewer. |
 | `macSign` | `fx.macSign` | `false` | Sign the application. Needs an Apple Developer certificate in the keychain. |
-| `macSigningKey` | `fx.macSigningKey` | none | Name of the signing certificate, used when `macSign` is `true`. |
+| `macSigningKey` | `fx.macSigningKey` | none | Name of the signing certificate, used when `macSign` is `true`. When it is empty, `jpackage` looks for a certificate in the keychain by itself. |
 
 ### Linux only
 
@@ -270,11 +300,15 @@ For `msi` and `exe`, the plugin also adds a Start Menu entry, a desktop shortcut
 
 For `deb` and `rpm`, the plugin also adds a shortcut and a lowercase package name made from `name`.
 
+### Options and package types
+
+The system-specific options apply to installers only. With `app-image`, the Windows options (`upgradeUuid`, `perUser`, menu entry, shortcut and folder chooser) and the Linux options (shortcut, package name, `linuxMenuGroup`, `linuxMaintainer`) are not passed to `jpackage`. The macOS options are passed for every type, including `app-image`.
+
 ## Platform notes
 
 ### Windows
 
-- `msi` and `exe` need WiX 3.x. WiX 4 and newer do not work with the `jpackage` of JDK 17.
+- `msi` and `exe` need WiX 3.x. The `jpackage` of JDK 17 does not work with WiX 4 and newer. Newer JDK releases added support for newer WiX versions, so check the `jpackage` documentation of your JDK if you want to use one.
 - With `perUser` set to `true` the application installs under the user's profile, so logs and settings can be written next to the application. For an install under `Program Files`, write logs and settings to `%APPDATA%`.
 - An unsigned installer shows a SmartScreen warning. A code-signing certificate removes it.
 
@@ -357,7 +391,7 @@ Linux:
 /opt/planner/lib/runtime/bin/java -cp "/opt/planner/lib/app/*" org.example.AppLauncher
 ```
 
-The macOS and Linux paths are the usual locations and may differ on your machine. Read the exception. A `NoClassDefFoundError` names a class, and the package tells you which module to add.
+The macOS and Linux paths are the usual locations and may differ on your machine. For an `app-image` build, use the `runtime` and `app` folders inside the result folder instead. Read the exception. A `NoClassDefFoundError` names a class, and the package tells you which module to add.
 
 ## Run from Eclipse
 
@@ -383,7 +417,7 @@ After you change and reinstall the plugin, run `mvn clean install` in the plugin
 4. Removes `-SNAPSHOT` from the version and checks that it is numeric, and that it starts with 1 or higher on macOS.
 5. Warns if a JavaFX jar for another system is on the classpath.
 6. Finds the project jar in `target` (`<finalName>.jar`). It fails if the jar does not exist, so run `package` first.
-7. Recreates `target/dist` and copies the project jar into it, plus the dependency jars when `copyLibs` is `true`.
+7. Recreates `target/dist` and copies the project jar into it, plus the dependency jars when `copyLibs` is `true`. Test-scope and provided-scope dependencies are not copied.
 8. Chooses the icon for the system and skips it with a warning if it is missing or has the wrong extension.
 9. Adds the options of the system (Windows, macOS or Linux) and runs `jpackage` with `target/dist` as input and `target/installer` as output.
 
@@ -391,11 +425,14 @@ After you change and reinstall the plugin, run `mvn clean install` in the plugin
 
 | Message or symptom | Cause and fix |
 |---|---|
+| `No plugin found for prefix 'flexitech-javafx'` | The plugin is not declared in the project's `pom.xml`, or it is not installed. Declare it as shown in [Configure the plugin](#configure-the-plugin), run `mvn clean install` in the plugin project, or use the full coordinates. |
 | `jpackage was not found. Run Maven with JDK 17 or newer.` | Maven runs on a JRE or an old JDK. Use a JDK 17 or newer, and in Eclipse set it on the JRE tab. |
 | `jpackage cannot build for MAC on WINDOWS` | You asked for another system than the one running Maven. Run the build on that system, or remove `platform`. |
+| `Unknown platform` | `platform` is not one of `auto`, `windows`, `mac` or `linux`. |
 | `The type 'dmg' is not available on WINDOWS` | The type belongs to another system. Use one of the types in the message. |
 | `The installer version must be numbers like 1.0.0` | The version has a text suffix. Set `<version>` in the plugin configuration or pass `-Dfx.version=1.0.0`. |
 | `On macOS the first number of the version must be 1 or higher` | The version starts with 0, such as `0.0.1`. Set `<version>1.0.0</version>`. |
+| `jpackage failed` on Windows with a version error | A number in the version is too large for Windows. Keep the first two numbers at 255 or less. |
 | `Jar not found: ... Run 'mvn clean package ...'` | The goal ran without `package`. Put `package` before it on the command line. |
 | `jpackage failed ... WiX Toolset 3.x must be installed` | Install WiX 3.x and put its `bin` folder on the PATH. For a test without WiX, use `-Dfx.type=app-image`. |
 | `jpackage failed ... Xcode command line tools` | Run `xcode-select --install` on the Mac. |
@@ -428,6 +465,9 @@ After you change and reinstall the plugin, run `mvn clean install` in the plugin
 - There is no automatic update mechanism. Users install a new version over the old one.
 - The plugin passes signing options to `jpackage` on macOS but does not sign Windows installers or notarize macOS applications.
 - The module list is not worked out automatically. It must be maintained by hand.
+- The JavaFX jar check compares the operating system only. It does not detect a jar for the wrong CPU type, such as an Intel jar on an Apple Silicon Mac.
+- Some `jpackage` options have no plugin parameter yet: extra JVM options (such as `-Xmx`), a license file, copyright text, a description, a console window for the Windows launcher and a custom resource folder.
+- The Windows menu entry, desktop shortcut and folder chooser are always on for `msi` and `exe`.
 
 ## License
 

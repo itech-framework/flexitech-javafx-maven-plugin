@@ -2,9 +2,34 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>io.github.itech-framework</groupId>
   <artifactId>flexitech-javafx-maven-plugin</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+  <version>0.0.1</version>
   <packaging>maven-plugin</packaging>
+
   <name>Flexitech Framework JavaFx Maven Plugin</name>
+  <description>
+    Maven plugin for the Flexitech JavaFX framework.
+  </description>
+  <url>https://github.com/itech-framework/flexitech-javafx-maven-plugin</url>
+
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>http://www.opensource.org/licenses/mit-license.php</url>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <name>Sai Zaw Myint</name>
+      <email>itech.saizawmyint@gmail.com</email>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:https://github.com/itech-framework/flexitech-javafx-maven-plugin.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/itech-framework/flexitech-javafx-maven-plugin.git</developerConnection>
+    <url>https://github.com/itech-framework/flexitech-javafx-maven-plugin/tree/main</url>
+  </scm>
 
   <properties>
     <maven.compiler.release>17</maven.compiler.release>
@@ -41,6 +66,77 @@
         <configuration>
           <goalPrefix>flexitech-javafx</goalPrefix>
         </configuration>
+        <executions>
+          <execution>
+            <id>default-descriptor</id>
+            <phase>process-classes</phase>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.sonatype.central</groupId>
+        <artifactId>central-publishing-maven-plugin</artifactId>
+        <version>0.7.0</version>
+        <extensions>true</extensions>
+        <configuration>
+          <publishingServerId>central</publishingServerId>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>3.3.0</version>
+        <configuration>
+          <source>17</source>
+          <doclint>none</doclint>
+          <show>protected</show>
+          <links>
+            <link>https://docs.oracle.com/en/java/javase/17/docs/api</link>
+          </links>
+          <javadocExecutable>${java.home}/bin/javadoc</javadocExecutable>
+          <additionalOptions>
+            <additionalOption>-Xdoclint:none</additionalOption>
+          </additionalOptions>
+        </configuration>
+        <executions>
+          <execution>
+            <id>attach-javadocs</id>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <version>3.2.1</version>
+        <executions>
+          <execution>
+            <id>attach-sources</id>
+            <goals>
+              <goal>jar-no-fork</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-gpg-plugin</artifactId>
+        <version>1.6</version>
+        <executions>
+          <execution>
+            <id>sign-artifacts</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>sign</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
